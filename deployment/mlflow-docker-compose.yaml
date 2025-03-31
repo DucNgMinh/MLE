@@ -1,0 +1,52 @@
+# Docker compose spec https://github.com/compose-spec/compose-spec/blob/master/spec.md#depends_on
+version: '3.9'
+
+services:
+  postgresql: 
+    restart: always  
+    image: postgres:13
+    container_name: mlflow_db
+    ports:
+      - "5432:5432" # host:container
+    env_file: .env                    
+    volumes:
+      - mlflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mle
+
+  mlflow:
+    restart: always
+    build:
+      context: mlflow/
+      args:
+        MLFLOW_VERSION: ${MLFLOW_VERSION}
+    image: mlflow_server
+    container_name: mlflow_server
+    ports:
+      - "5001:5000"
+    env_file: .env
+    volumes:
+      - mlflow_data:/mlflow
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mle
+
+volumes:
+  mlflow_db_data:
+  mlflow_data:
+
+networks:
+  mle:
